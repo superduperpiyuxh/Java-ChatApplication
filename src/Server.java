@@ -111,10 +111,11 @@ public class Server {
 
     public static void main(String[] args) {
         try {
-            ServerSocket serverSocket = new ServerSocket(5000);
-
-            // Reuse port quickly after restart — avoids "address already in use" error
+            // FIX: setReuseAddress MUST be called before bind, not after.
+            // Doing it after new ServerSocket(5000) is too late — the socket is already bound.
+            ServerSocket serverSocket = new ServerSocket();
             serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress(5000));
 
             Server server = new Server(serverSocket);
             server.startServer();

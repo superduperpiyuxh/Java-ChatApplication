@@ -45,8 +45,12 @@ public class WebSocketHandler implements Runnable {
                 socket.close();
                 return;
             }
-            username = username.replaceAll("[^a-zA-Z0-9_\\-]", "")
-                               .substring(0, Math.min(username.length(), 20));
+
+            // FIX: clean the username first, THEN take substring of the cleaned result.
+            // Before, substring used username.length() (pre-clean length) which could
+            // exceed the cleaned string's length and throw StringIndexOutOfBoundsException.
+            username = username.replaceAll("[^a-zA-Z0-9_\\-]", "");
+            username = username.substring(0, Math.min(username.length(), 20));
             username = "[WEB] " + username;
 
             Server.webClients.add(this);
@@ -143,7 +147,6 @@ public class WebSocketHandler implements Runnable {
     // Uses raw byte reading to avoid BufferedReader consuming bytes past the headers.
     private boolean doHandshake() throws IOException, java.security.NoSuchAlgorithmException {
         StringBuilder headers = new StringBuilder();
-        int prev = -1;
 
         // Read until we hit the blank line (\r\n\r\n) that ends HTTP headers
         while (true) {
