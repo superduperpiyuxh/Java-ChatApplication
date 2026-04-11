@@ -1,10 +1,7 @@
 # CHAT // TERMINAL
-
 > A secure group chat application built from scratch in Java — no frameworks, no libraries.
 
-![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=java&logoColor=white)
-![Shell](https://img.shields.io/badge/Shell_Script-121011?style=for-the-badge&logo=gnu-bash&logoColor=white)
-![HTML](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=java&logoColor=white) ![Shell](https://img.shields.io/badge/Shell_Script-121011?style=for-the-badge&logo=gnu-bash&logoColor=white) ![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white) ![HTML](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
 
 ---
 
@@ -40,23 +37,39 @@ ChatApplication/
     ├── PushedBackSocket.java  ← helper for detecting client type
     ├── ChatTUI.java           ← hacker terminal UI for laptop users
     ├── Client.java            ← basic terminal client (no UI)
-    ├── run.sh                 ← one command setup and launcher
+    ├── run.sh                 ← one command setup and launcher (Linux/macOS)
+    ├── run.bat                ← one command launcher (Windows)
     └── chat.html              ← web client for phone/browser users
 ```
 
 ---
 
+## Requirements
+
+### Linux / macOS
+- Java JDK 11 or higher (installed automatically if missing)
+- Bash terminal
+
+### Windows
+- Java JDK 11 or higher → download from [adoptium.net](https://adoptium.net)
+- Command Prompt or PowerShell
+- After installing JDK, verify with: `java -version` and `javac -version`
+
+---
+
 ## How to Run
 
-### Requirements
-- Linux (tested on Arch and Ubuntu)
-- Java JDK (installed automatically if missing)
-
-### Start
+### Linux / macOS
 ```bash
 cd src
 chmod +x run.sh
 ./run.sh
+```
+
+### Windows
+```cmd
+cd src
+run.bat
 ```
 
 You will see:
@@ -80,7 +93,14 @@ public static final String PASSWORD_HASH = hashPassword("yourpassword123");
 ```
 
 Then recompile:
+
+**Linux/macOS:**
 ```bash
+javac *.java
+```
+
+**Windows:**
+```cmd
 javac *.java
 ```
 
