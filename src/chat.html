@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CHAT // TERMINAL</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green:      #00ff41;
+    --green-dim:  #00aa2a;
+    --green-dark: #003b0f;
+    --green-glow: rgba(0,255,65,0.12);
+    --bg:         #0a0a0a;
+    --scan:       rgba(0,255,65,0.03);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scan) 2px, var(--scan) 4px);
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none;
+    z-index: 998;
+  }
+
+  /* ── LOGIN ─────────────────────────────────────────── */
+  #loginScreen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+
+  .login-box {
+    width: 100%; max-width: 420px;
+    padding: 0 28px;
+  }
+
+  .login-title {
+    font-family: 'VT323', monospace;
+    font-size: 52px;
+    color: var(--green);
+    text-shadow: 0 0 18px var(--green), 0 0 36px var(--green-dim);
+    letter-spacing: 6px;
+    animation: glitch 5s infinite;
+  }
+
+  @keyframes glitch {
+    0%,94%,100% { text-shadow: 0 0 18px var(--green), 0 0 36px var(--green-dim); }
+    95% { text-shadow: -3px 0 #ff0040, 3px 0 var(--green); }
+    97% { text-shadow: 3px 0 #ff0040, -3px 0 var(--green); }
+  }
+
+  .login-sub {
+    font-size: 11px; color: var(--green-dim);
+    letter-spacing: 3px; margin-bottom: 30px;
+  }
+
+  .field {
+    display: flex; align-items: center;
+    border-bottom: 1px solid var(--green-dark);
+    margin-bottom: 18px; padding-bottom: 6px;
+    transition: border-color 0.2s;
+  }
+
+  .field:focus-within { border-color: var(--green); }
+
+  .field label {
+    font-size: 11px; color: var(--green-dim);
+    width: 100px; flex-shrink: 0; letter-spacing: 2px;
+  }
+
+  .field input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--green); font-family: 'Share Tech Mono', monospace;
+    font-size: 14px; caret-color: var(--green);
+  }
+
+  .login-btn {
+    width: 100%; background: transparent;
+    border: 1px solid var(--green-dim);
+    color: var(--green); font-family: 'VT323', monospace;
+    font-size: 24px; letter-spacing: 4px;
+    padding: 10px; cursor: pointer; margin-top: 6px;
+    transition: all 0.2s;
+  }
+
+  .login-btn:hover, .login-btn:active {
+    background: var(--green-glow);
+    border-color: var(--green);
+    box-shadow: 0 0 14px var(--green-glow);
+  }
+
+  .error-msg {
+    font-size: 12px; color: #ff4444;
+    margin-top: 12px; min-height: 18px;
+    letter-spacing: 1px;
+  }
+
+  .boot-text {
+    font-size: 10px; color: var(--green-dark);
+    margin-top: 18px; line-height: 1.9;
+  }
+
+  /* ── CHAT ──────────────────────────────────────────── */
+  #chatScreen {
+    display: none;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 12px;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--green-dim);
+    padding: 9px 0 7px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'VT323', monospace; font-size: 26px;
+    color: var(--green);
+    text-shadow: 0 0 10px var(--green), 0 0 20px var(--green-dim);
+    letter-spacing: 4px;
+  }
+
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 6px var(--green);
+    display: inline-block; margin-left: 10px;
+    animation: blink 2s infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .header-right {
+    font-size: 10px; color: var(--green-dim);
+    text-align: right; line-height: 1.7;
+  }
+
+  .sysbar {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    padding: 5px 0; font-size: 10px;
+    color: var(--green-dim);
+    border-bottom: 1px solid #111;
+    flex-shrink: 0;
+  }
+
+  .sysbar .val { color: var(--green); }
+
+  .users-bar {
+    display: flex; gap: 14px; flex-wrap: nowrap;
+    overflow-x: auto; padding: 5px 0;
+    font-size: 10px; color: var(--green-dim);
+    border-bottom: 1px solid #111;
+    flex-shrink: 0;
+  }
+
+  .users-bar::-webkit-scrollbar { display: none; }
+
+  .upill::before {
+    content: ''; display: inline-block;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 4px var(--green);
+    margin-right: 5px; vertical-align: middle;
+  }
+
+  .messages {
+    flex: 1; overflow-y: auto;
+    padding: 10px 0; display: flex;
+    flex-direction: column; gap: 3px;
+  }
+
+  .messages::-webkit-scrollbar { width: 3px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: 2px; }
+
+  .msg {
+    display: flex; gap: 8px;
+    font-size: 13px; line-height: 1.5;
+    padding: 1px 4px;
+    animation: fadeIn 0.12s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity:0; transform: translateX(-3px); }
+    to   { opacity:1; transform: translateX(0); }
+  }
+
+  .msg-time { color: var(--green-dark); font-size: 10px; margin-top: 2px; flex-shrink: 0; }
+  .msg-user { color: var(--green); font-weight: bold; flex-shrink: 0; min-width: 80px; font-size: 12px; }
+  .msg-text { color: #b3ffca; word-break: break-word; }
+
+  .msg.system .msg-user { color: var(--green-dim); }
+  .msg.system .msg-text { color: var(--green-dim); font-style: italic; }
+  .msg.own .msg-text    { color: var(--green); }
+
+  .input-area {
+    border-top: 1px solid var(--green-dim);
+    padding: 9px 0 12px; flex-shrink: 0;
+  }
+
+  .input-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .prompt { color: var(--green); font-size: 14px; flex-shrink: 0; text-shadow: 0 0 6px var(--green); }
+
+  #msgInput {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--green); font-family: 'Share Tech Mono', monospace;
+    font-size: 14px; caret-color: var(--green);
+  }
+
+  #msgInput::placeholder { color: #1a4424; }
+
+  .send-btn {
+    background: transparent; border: 1px solid var(--green-dim);
+    color: var(--green-dim); font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; padding: 4px 12px; cursor: pointer;
+    letter-spacing: 2px; transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .send-btn:hover, .send-btn:active {
+    border-color: var(--green); color: var(--green);
+    background: var(--green-glow);
+  }
+
+  .hint { font-size: 10px; color: #1a3320; margin-top: 5px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-title">// CHAT</div>
+    <div class="login-sub">SECURE TERMINAL v1.0</div>
+
+    <div class="field">
+      <label>SERVER_IP</label>
+      <input type="text" id="serverIp" placeholder="0.tcp.ngrok.io" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>PORT</label>
+      <input type="number" id="serverPort" placeholder="12345" />
+    </div>
+    <div class="field">
+      <label>PASSWORD</label>
+      <input type="password" id="password" placeholder="••••••••" />
+    </div>
+    <div class="field">
+      <label>USERNAME</label>
+      <input type="text" id="loginUsername" placeholder="agent_47" maxlength="20" autocomplete="off" />
+    </div>
+
+    <button class="login-btn" id="connectBtn" onclick="connect()">[ CONNECT ]</button>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="boot-text">
+      > ALL TRANSMISSIONS SECURED WITH SHA-256<br>
+      > TYPE /quit TO DISCONNECT<br>
+      > WORKS ON ANY DEVICE
+    </div>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div id="chatScreen">
+  <div class="header">
+    <div style="display:flex;align-items:center">
+      <div class="logo">// CHAT</div>
+      <div class="dot" id="statusDot"></div>
+    </div>
+    <div class="header-right">
+      SECURE TERMINAL v1.0<br>
+      <span id="connInfo" style="color:var(--green-dark)"></span>
+    </div>
+  </div>
+
+  <div class="sysbar">
+    <span>USER: <span class="val" id="displayUser">—</span></span>
+    <span>STATUS: <span class="val">ONLINE</span></span>
+    <span>ENC: <span class="val">SHA-256</span></span>
+    <span><span class="val" id="clock">00:00:00</span></span>
+  </div>
+
+  <div class="users-bar" id="usersBar">
+    <span style="color:var(--green-dark);flex-shrink:0">ONLINE:</span>
+  </div>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <span class="prompt" id="promptLabel">&gt;</span>
+      <input type="text" id="msgInput" placeholder="type message..." autocomplete="off" />
+      <button class="send-btn" onclick="sendMessage()">SEND</button>
+    </div>
+    <div class="hint">ENTER to send &nbsp;·&nbsp; /quit to exit</div>
+  </div>
+</div>
+
+<script>
+  let ws = null;
+  let myUsername = '';
+
+  // Clock
+  setInterval(() => {
+    const t = new Date().toTimeString().slice(0,8);
+    const el = document.getElementById('clock');
+    if (el) el.textContent = t;
+  }, 1000);
+
+  // SHA-256 in browser (Web Crypto API)
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function connect() {
+    const ip       = document.getElementById('serverIp').value.trim();
+    const port     = document.getElementById('serverPort').value.trim();
+    const password = document.getElementById('password').value;
+    const username = document.getElementById('loginUsername').value.trim();
+
+    if (!ip || !port || !password || !username) {
+      showError('> ALL FIELDS REQUIRED');
+      return;
+    }
+
+    showError('> CONNECTING...');
+    document.getElementById('connectBtn').disabled = true;
+
+    try {
+      ws = new WebSocket(`ws://${ip}:${port}`);
+
+      ws.onopen = async () => {
+        // Send hashed password first
+        const hash = await sha256(password);
+        ws.send(hash);
+      };
+
+      ws.onmessage = async (e) => {
+        const msg = e.data;
+
+        if (msg === 'AUTH_FAIL') {
+          showError('> WRONG PASSWORD. ACCESS DENIED.');
+          document.getElementById('connectBtn').disabled = false;
+          ws.close();
+          return;
+        }
+
+        if (msg === 'AUTH_OK') {
+          // Send username
+          myUsername = username.replace(/[^a-zA-Z0-9_\-]/g,'').slice(0,20);
+          ws.send(myUsername);
+
+          // Switch to chat screen
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('chatScreen').style.display = 'flex';
+          document.getElementById('displayUser').textContent = myUsername.toUpperCase();
+          document.getElementById('promptLabel').textContent = myUsername + ' >';
+          document.getElementById('connInfo').textContent = ip + ':' + port;
+          addUser(myUsername);
+          document.getElementById('msgInput').focus();
+
+          // Switch message handler to chat mode
+          ws.onmessage = (e) => handleChatMessage(e.data);
+          return;
+        }
+      };
+
+      ws.onerror = () => {
+        showError('> CONNECTION FAILED. CHECK IP AND PORT.');
+        document.getElementById('connectBtn').disabled = false;
+      };
+
+      ws.onclose = () => {
+        if (document.getElementById('chatScreen').style.display === 'flex') {
+          addMessage(now(), 'SERVER', 'Disconnected from server.', 'system');
+        }
+      };
+
+    } catch (err) {
+      showError('> ERROR: ' + err.message);
+      document.getElementById('connectBtn').disabled = false;
+    }
+  }
+
+  function handleChatMessage(msg) {
+    if (msg.startsWith('SERVER:')) {
+      addMessage(now(), 'SERVER', msg.replace('SERVER: ',''), 'system');
+
+      // Track users joining/leaving
+      if (msg.includes('has joined')) {
+        const name = msg.replace('SERVER: ','').replace(' has joined the chat!','');
+        addUser(name);
+      }
+      if (msg.includes('has left')) {
+        const name = msg.replace('SERVER: ','').replace(' has left the chat.','');
+        removeUser(name);
+      }
+    } else {
+      const colonIdx = msg.indexOf(':');
+      if (colonIdx > -1) {
+        const user = msg.substring(0, colonIdx).trim();
+        const text = msg.substring(colonIdx + 1).trim();
+        addMessage(now(), user, text, 'other');
+      } else {
+        addMessage(now(), '?', msg, 'other');
+      }
+    }
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('msgInput');
+    const text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    if (text === '/quit') {
+      ws.close();
+      input.value = '';
+      return;
+    }
+
+    ws.send(text);
+    addMessage(now(), myUsername, text, 'own');
+    input.value = '';
+  }
+
+  function addMessage(time, user, text, type) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg ' + type;
+    div.innerHTML =
+      `<span class="msg-time">[${time}]</span>` +
+      `<span class="msg-user">${esc(user)}</span>` +
+      `<span class="msg-text">${esc(text)}</span>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function addUser(name) {
+    const bar = document.getElementById('usersBar');
+    const id = 'u_' + name.replace(/\W/g,'');
+    if (document.getElementById(id)) return;
+    const span = document.createElement('span');
+    span.className = 'upill';
+    span.id = id;
+    span.textContent = name.toUpperCase();
+    bar.appendChild(span);
+  }
+
+  function removeUser(name) {
+    const id = 'u_' + name.replace(/\W/g,'');
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function showError(msg) {
+    document.getElementById('errorMsg').textContent = msg;
+  }
+
+  function now() {
+    return new Date().toTimeString().slice(0,8);
+  }
+
+  function esc(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      if (document.getElementById('loginScreen').style.display !== 'none') {
+        connect();
+      } else {
+        sendMessage();
+      }
+    }
+  });
+</script>
+</body>
+</html>

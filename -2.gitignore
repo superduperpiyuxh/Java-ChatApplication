@@ -1,0 +1,66 @@
+# Compiled Java classes
+*.class
+
+# JAR files
+*.jar
+*.war
+*.ear
+
+# Java package files
+*.zip
+*.tar.gz
+*.rar
+
+# BlueJ files
+*.bjp
+*.pkh
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files
+*.ap_
+
+# virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# IDE files — IntelliJ
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# IDE files — Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# IDE files — VS Code
+.vscode/
+
+# IDE files — NetBeans
+nbproject/local.properties
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.nfs*
+
+# ngrok config (contains your auth token — never commit this)
+ngrok.yml
+.ngrok2/
+
+# Logs
+*.log
+/tmp/ngrok.log
