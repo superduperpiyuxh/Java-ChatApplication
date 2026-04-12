@@ -24,11 +24,18 @@ set /p choice=" Enter 1 or 2 > "
 
 if "%choice%"=="1" (
     echo.
-    echo  Starting server on port 5000...
-    echo  Share your IP and port 5000 with others on the same WiFi.
+    echo  SERVER STARTING (Local Network)
+    echo.
+    echo  Your IP:
+    ipconfig | findstr /i "IPv4"
+    echo  Port: 5000
+    echo.
+    echo  Share the IPv4 address above and port 5000
+    echo  with everyone on the same WiFi.
     echo  Press Ctrl+C to stop.
     echo.
     java Server
+
 ) else if "%choice%"=="2" (
     echo.
     java ChatTUI
