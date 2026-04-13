@@ -6,26 +6,26 @@ public class ClientHandler implements Runnable {
 
     public static final CopyOnWriteArrayList<ClientHandler> clientHandlers = new CopyOnWriteArrayList<>();
 
-    private Socket socket;
+    private final Socket socket;
     private BufferedReader bufferedReader;
     private BufferedWriter bufferedWriter;
     private String clientUsername;
-    private String requiredPasswordHash;
+    private final String requiredPasswordHash;
 
-    // Rate limiting — max 10 messages per 5 seconds
-    private long windowStart = System.currentTimeMillis();
-    private int messageCount = 0;
-    static final int MAX_MESSAGES = 10;
-    static final long WINDOW_MS   = 5000;
+    // rate limiting
+    private long windowStart  = System.currentTimeMillis();
+    private int  messageCount = 0;
+    private static final int  MAX_MESSAGES = 10;
+    private static final long WINDOW_MS    = 5000;
 
     public ClientHandler(Socket socket, String requiredPasswordHash) {
-        this.socket = socket;
+        this.socket               = socket;
         this.requiredPasswordHash = requiredPasswordHash;
         try {
             this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
             this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         } catch (IOException e) {
-            System.err.println("Stream setup error: " + e.getMessage());
+            System.err.println("Stream error: " + e.getMessage());
             closeEverything();
         }
     }
@@ -35,32 +35,41 @@ public class ClientHandler implements Runnable {
         try {
             if (!authenticate()) {
                 send("AUTH_FAIL");
-                System.out.println("Failed auth from: " + socket.getInetAddress());
+                System.out.println("Bad auth from " + socket.getInetAddress());
                 closeEverything();
                 return;
             }
             send("AUTH_OK");
 
-            clientUsername = bufferedReader.readLine();
-            if (clientUsername == null || clientUsername.trim().isEmpty()) {
+            String rawUsername = bufferedReader.readLine();
+            if (rawUsername == null || rawUsername.trim().isEmpty()) {
                 closeEverything();
                 return;
             }
 
-            clientUsername = clientUsername
-                .replaceAll("[^a-zA-Z0-9_\\-]", "")
-                .substring(0, Math.min(clientUsername.length(), 20));
+            clientUsername = rawUsername.replaceAll("[^a-zA-Z0-9_\\-]", "");
+            clientUsername = clientUsername.substring(0, Math.min(clientUsername.length(), 20));
+
+            if (clientUsername.isEmpty()) {
+                send("ERROR: Username has no valid characters. Use letters, numbers, _ or -");
+                closeEverything();
+                return;
+            }
 
             clientHandlers.add(this);
-            System.out.println(clientUsername + " joined via terminal. Total: " + clientHandlers.size());
+            System.out.println(clientUsername + " joined (terminal). Total: " + clientHandlers.size());
             broadcastToAll("SERVER: " + clientUsername + " has joined the chat!", null);
 
             String message;
             while (socket.isConnected()) {
                 message = bufferedReader.readLine();
-
                 if (message == null) { closeEverything(); break; }
-                if (message.trim().isEmpty() || message.length() > 500) continue;
+                if (message.trim().isEmpty()) continue;
+
+                if (message.length() > 500) {
+                    send("SERVER: Message too long (max 500 chars).");
+                    continue;
+                }
 
                 if (isRateLimited()) {
                     send("SERVER: Slow down!");
@@ -75,8 +84,6 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    // Broadcasts to all terminal clients and all web clients.
-    // Pass `sender` to skip echoing back to whoever sent the message (pass null to send to everyone).
     public static void broadcastToAll(String message, Object sender) {
         for (ClientHandler client : clientHandlers) {
             if (client == sender) continue;
@@ -94,20 +101,20 @@ public class ClientHandler implements Runnable {
             try {
                 wsh.sendFrame(message);
             } catch (IOException e) {
-                System.err.println("Failed sending to web client.");
+                System.err.println("Failed to send to web client: " + e.getMessage());
             }
         }
     }
 
     private boolean authenticate() throws IOException {
         String received = bufferedReader.readLine();
-        return requiredPasswordHash.equals(received);
+        return received != null && requiredPasswordHash.equals(received.trim());
     }
 
     private boolean isRateLimited() {
         long now = System.currentTimeMillis();
         if (now - windowStart > WINDOW_MS) {
-            windowStart = now;
+            windowStart  = now;
             messageCount = 0;
         }
         return ++messageCount > MAX_MESSAGES;
@@ -122,7 +129,7 @@ public class ClientHandler implements Runnable {
     public void removeClientHandler() {
         clientHandlers.remove(this);
         if (clientUsername != null) {
-            System.out.println(clientUsername + " disconnected. Total: " + clientHandlers.size());
+            System.out.println(clientUsername + " left. Total: " + clientHandlers.size());
             broadcastToAll("SERVER: " + clientUsername + " has left the chat.", null);
         }
     }
@@ -133,8 +140,6 @@ public class ClientHandler implements Runnable {
             if (bufferedReader != null) bufferedReader.close();
             if (bufferedWriter != null) bufferedWriter.close();
             if (socket != null && !socket.isClosed()) socket.close();
-        } catch (IOException e) {
-            System.err.println("Error closing connection.");
-        }
+        } catch (IOException ignored) {}
     }
 }

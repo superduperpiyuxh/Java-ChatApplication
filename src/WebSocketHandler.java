@@ -6,8 +6,8 @@ import java.util.Base64;
 
 public class WebSocketHandler implements Runnable {
 
-    private Socket socket;
-    private InputStream in;
+    private final Socket socket;
+    private InputStream  in;
     private OutputStream out;
     private String username;
 
@@ -24,53 +24,57 @@ public class WebSocketHandler implements Runnable {
     @Override
     public void run() {
         try {
-            if (!doHandshake()) {
-                socket.close();
-                return;
-            }
+            if (!doHandshake()) { socket.close(); return; }
 
-            // First frame must be the password hash
             String passwordHash = readFrame();
             if (passwordHash == null || !Server.PASSWORD_HASH.equals(passwordHash.trim())) {
                 sendFrame("AUTH_FAIL");
-                System.out.println("Browser client failed auth: " + socket.getInetAddress());
+                System.out.println("Bad auth from " + socket.getInetAddress());
                 socket.close();
                 return;
             }
             sendFrame("AUTH_OK");
 
-            // Second frame is the username
-            username = readFrame();
-            if (username == null || username.trim().isEmpty()) {
+            String rawUsername = readFrame();
+            if (rawUsername == null || rawUsername.trim().isEmpty()) {
+                sendFrame("ERROR: Username cannot be empty.");
                 socket.close();
                 return;
             }
 
-            // FIX: clean the username first, THEN take substring of the cleaned result.
-            // Before, substring used username.length() (pre-clean length) which could
-            // exceed the cleaned string's length and throw StringIndexOutOfBoundsException.
-            username = username.replaceAll("[^a-zA-Z0-9_\\-]", "");
+            username = rawUsername.replaceAll("[^a-zA-Z0-9_\\-]", "");
             username = username.substring(0, Math.min(username.length(), 20));
+
+            if (username.isEmpty()) {
+                sendFrame("ERROR: Username has no valid characters. Use letters, numbers, _ or -");
+                socket.close();
+                return;
+            }
+
             username = "[WEB] " + username;
 
             Server.webClients.add(this);
-            System.out.println(username + " joined via browser. Web clients: " + Server.webClients.size());
+            System.out.println(username + " joined (browser). Total web: " + Server.webClients.size());
             ClientHandler.broadcastToAll("SERVER: " + username + " has joined the chat!", null);
 
-            // Listen for messages
             String message;
             while (!socket.isClosed()) {
                 message = readFrame();
                 if (message == null) break;
-                if (message.trim().isEmpty() || message.length() > 500) continue;
+                if (message.trim().isEmpty()) continue;
+
+                if (message.length() > 500) {
+                    sendFrame("SERVER: Message too long (max 500 chars).");
+                    continue;
+                }
 
                 ClientHandler.broadcastToAll(username + ": " + message, this);
             }
 
         } catch (IOException e) {
-            // client disconnected normally
+            // disconnected, nothing to do
         } catch (java.security.NoSuchAlgorithmException e) {
-            System.err.println("SHA-1 not available: " + e.getMessage());
+            System.err.println("SHA-1 missing: " + e.getMessage());
         } finally {
             disconnect();
         }
@@ -79,8 +83,7 @@ public class WebSocketHandler implements Runnable {
     public void sendFrame(String message) throws IOException {
         byte[] data = message.getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream frame = new ByteArrayOutputStream();
-
-        frame.write(0x81); // FIN bit + text opcode
+        frame.write(0x81);
 
         if (data.length <= 125) {
             frame.write(data.length);
@@ -90,9 +93,7 @@ public class WebSocketHandler implements Runnable {
             frame.write(data.length & 0xFF);
         } else {
             frame.write(127);
-            for (int i = 7; i >= 0; i--) {
-                frame.write((data.length >> (i * 8)) & 0xFF);
-            }
+            for (int i = 7; i >= 0; i--) frame.write((data.length >> (i * 8)) & 0xFF);
         }
 
         frame.write(data);
@@ -101,23 +102,18 @@ public class WebSocketHandler implements Runnable {
     }
 
     private String readFrame() throws IOException {
-        int b1 = in.read();
-        if (b1 == -1) return null;
+        int b1 = in.read(); if (b1 == -1) return null;
+        int b2 = in.read(); if (b2 == -1) return null;
+        if ((b1 & 0x0F) == 8) return null; // close frame
 
-        int b2 = in.read();
-        if (b2 == -1) return null;
-
-        // Opcode 8 = close frame
-        if ((b1 & 0x0F) == 8) return null;
-
-        boolean masked = (b2 & 0x80) != 0;
-        int payloadLen = b2 & 0x7F;
+        boolean masked     = (b2 & 0x80) != 0;
+        int     payloadLen =  b2 & 0x7F;
 
         if (payloadLen == 126) {
             payloadLen = ((in.read() & 0xFF) << 8) | (in.read() & 0xFF);
         } else if (payloadLen == 127) {
             for (int i = 0; i < 8; i++) in.read();
-            return null; // too large, ignore
+            return null; // too big, ignore
         }
 
         byte[] mask = new byte[4];
@@ -135,54 +131,39 @@ public class WebSocketHandler implements Runnable {
         }
 
         if (masked) {
-            for (int i = 0; i < payloadLen; i++) {
-                payload[i] ^= mask[i % 4];
-            }
+            for (int i = 0; i < payloadLen; i++) payload[i] ^= mask[i % 4];
         }
 
         return new String(payload, StandardCharsets.UTF_8);
     }
 
-    // Reads the HTTP upgrade request and sends back the WebSocket handshake response.
-    // Uses raw byte reading to avoid BufferedReader consuming bytes past the headers.
     private boolean doHandshake() throws IOException, java.security.NoSuchAlgorithmException {
         StringBuilder headers = new StringBuilder();
-
-        // Read until we hit the blank line (\r\n\r\n) that ends HTTP headers
         while (true) {
-            int curr = in.read();
-            if (curr == -1) return false;
-            headers.append((char) curr);
-
-            String tail = headers.length() >= 4
-                ? headers.substring(headers.length() - 4)
-                : headers.toString();
-
-            if (tail.equals("\r\n\r\n")) break;
+            int c = in.read();
+            if (c == -1) return false;
+            headers.append((char) c);
+            if (headers.length() >= 4 && headers.substring(headers.length() - 4).equals("\r\n\r\n")) break;
         }
 
         String wsKey = null;
         for (String line : headers.toString().split("\r\n")) {
-            if (line.startsWith("Sec-WebSocket-Key:")) {
+            if (line.startsWith("Sec-WebSocket-Key:"))
                 wsKey = line.substring(line.indexOf(':') + 1).trim();
-            }
         }
-
         if (wsKey == null) return false;
 
         String acceptKey = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-1")
-                .digest((wsKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-                .getBytes(StandardCharsets.UTF_8))
+                .digest((wsKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(StandardCharsets.UTF_8))
         );
 
-        String response =
+        out.write((
             "HTTP/1.1 101 Switching Protocols\r\n" +
             "Upgrade: websocket\r\n" +
             "Connection: Upgrade\r\n" +
-            "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
-
-        out.write(response.getBytes(StandardCharsets.UTF_8));
+            "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n"
+        ).getBytes(StandardCharsets.UTF_8));
         out.flush();
         return true;
     }
@@ -193,8 +174,6 @@ public class WebSocketHandler implements Runnable {
             System.out.println(username + " disconnected.");
             ClientHandler.broadcastToAll("SERVER: " + username + " has left the chat.", null);
         }
-        try {
-            if (!socket.isClosed()) socket.close();
-        } catch (IOException ignored) {}
+        try { if (!socket.isClosed()) socket.close(); } catch (IOException ignored) {}
     }
 }
